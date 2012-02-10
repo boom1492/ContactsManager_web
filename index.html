@@ -1,0 +1,242 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=EUC-KR">
+<title>Phone Syncer : jhlee</title>
+
+<!-- Junction -->
+<script language='javascript' type='text/javascript' src='http://openjunction.github.com/JSJunction/json2.js'></script>
+<script language='javascript' type='text/javascript' src='http://openjunction.github.com/JSJunction/strophejs/1.0.1/strophe.js'></script>
+<script language='javascript' type='text/javascript' src='http://openjunction.github.com/JSJunction/junction/0.6.8/junction.js'></script>
+<!-- JQuery -->
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js"></script>  
+<script language="JavaScript" type="text/javascript">
+	//선택된 정보를 저장할 변수
+	var mName = ""; var mPhone = ""; var mEmail = "";
+	var junction = {};
+	$(document).ready(function() {
+		$('#contactspage').hide();
+		$('#smspage').hide();
+		$('#editpage').hide();
+		$('#loading').hide();
+		
+		var UUID = randomUUID();
+		var mHost = "192.168.43.13";
+		$('#UUID').html(UUID);
+		var src = "https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl="+"http://"+mHost+"/pcsync?sessionId="+UUID;
+		$('#qr').attr("src", src);
+		var script = {ad:"pcsync", sessionID:UUID, host:mHost};
+		junction.onActivityJoin = function(){
+		}
+		junction.onMessageReceived = function(msg){
+			if(msg.service == "init"){
+				var phoneNumber = msg.phoneNumber;
+				$('#initpage').hide();
+				$('#contactspage').show();
+				var list = msg.contacts;
+				loadContacts(list);
+			}
+			else if(msg.service == "ackinitsms"){
+				$('#smspage').show();
+				$('#editpage').hide();
+				var list = msg.smslist;
+				loadSms(list);
+				endLoading();
+			}
+			else if(msg.service == "disconnect"){
+				location.reload();
+			}
+			else if(msg.service == "receivedsms"){
+				var message = msg.message;
+				var phoneNumber = msg.phoneNumber;
+				receivedSms(phoneNumber, message);
+				
+			}
+		}
+		JX.getInstance(mHost).newJunction(script, junction);
+		$('#send').click(function() {
+			sendMessage();
+		});
+		
+		$('#edit').click(function() {
+			$('editpage').show();
+			$('smspage').hide();
+		});
+		
+		
+	});
+	
+	function startLoading(){
+		$('#loading').show();
+	}
+	function endLoading(){
+		$('#loading').hide();
+	}
+	function sendMessage(){
+		var msgbox = $('#msgbox');
+		var message = msgbox.val();
+		if(message.length==0 || message.length>80){
+			alert('유효한 SMS가 아닙니다.');
+		}
+		else{
+			if(confirm('정말 SMS를 보내시겠습니까?')){
+				$('#smslist').append("<div class='sendedsms'>"+ message +"</div>");
+				junction.sendMessageToSession({'service':'sendsms','phoneNumber':mPhone,'message':message});
+			}
+		}
+	}
+
+	function randomUUID() {
+		var s = [], itoh = '0123456789ABCDEF';
+		for (var i = 0; i <6; i++) s[i] = Math.floor(Math.random()*0x10);
+		s[5] = (s[5] & 0x3) | 0x8;
+		for (var i = 0; i <6; i++) s[i] = itoh[s[i]];
+		return s.join('');
+	}
+	function loadSms(list){
+		var smslist = $('#smslist');
+		smslist.html("");
+		for(i=list.length-1;i>=0;i--){
+			if(list[i].type==1){
+				smslist.append("<div class='receivedsms'>"+list[i].body+"</div>");
+			}else{
+				smslist.append("<div class='sendedsms'>"+list[i].body+"</div>");
+			}
+		}
+		
+	}
+	function receivedSms(phoneNumber, message){
+		var smslist = $('#smslist');
+		if(phoneNumber==mPhone){
+			smslist.append("<div class='receivedsms'>"+message+"</div");
+		}
+		
+	}
+	function loadContacts(list){
+		//test dummy data
+		var contacts = $('#contactlist');
+		contacts.append("<tr><td>이름</td><td>전화번호</td><td>E-mail</td></tr>");
+		for(i=0;i<list.length;i++){
+			contacts.append("<tr class='sel'><td>"+list[i].name+"</td><td>"+list[i].phone+"</td><td>"+list[i].email+"</td></tr>");
+		}
+		$('tr.sel').click(function() {
+			mName = this.childNodes[0].innerText;
+			mPhone = this.childNodes[1].innerText;
+			mEmail = this.childNodes[2].innerText;
+			$('#editpage').hide();
+			$('#smspage').show();
+			junction.sendMessageToSession({'service':'initsms', 'phoneNumber':mPhone});
+			startLoading();
+		});
+		$('tr.sel').mouseover(function() {
+			$(this).css("background", "#9Df0e1");
+		});
+		$('tr.sel').mouseout(function() {
+			$(this).css("background", "");
+		});
+	}
+</script>
+</head>
+<style type="text/css">
+	* {
+		font-family: "맑은 고딕";
+		margin: 0px;
+		padding: 0px;
+	}
+	td {
+		padding: 5px;
+		text-align: center;
+	}
+	
+	.sendedsms {
+		background-color: #FFEB5A;
+		float: right;
+		margin: 5px 5px 5px 5px;
+		padding: 10px 10px 10px 10px;
+		border-radius: 15px;
+		width: 70%;
+	}
+	.receivedsms {
+		background-color: #90F0E1;
+		float: left;
+		margin: 5px 5px 5px 5px;
+		padding: 10px 10px 10px 10px;
+		border-radius: 15px;
+		width: 70%;
+	}
+	#initpage {
+		position: fixed;
+		top: 50%;
+		left: 45%;
+		margin-top: -200px;
+		margin-left: -270px;	
+	}
+	#contactspage {
+		width: 40%;
+		height: 90%;
+		position: fixed;
+		overflow-y: auto;
+	}
+	
+	#smspage {
+		width: 55%;
+		height: 90%;
+		overflow-y: auto;
+		position: fixed;
+		left: 45%;
+	}
+	
+	#msgbox{
+		width: 85%;
+		height: 100px;
+		position: inherit;	
+	}
+	
+	#send{
+		width: 15%;
+		left: 85%;
+		position: inherit;
+	}
+	
+	#loading{
+		position: fixed;
+		width: 100%;
+		height: 100%;
+		background-color:black;
+		opacity: 0.8;
+		text-align: center;
+		color: white;
+		line-height: 18em;
+		font-size: 25pt;
+	}
+</style>
+<body>
+<div class="slides">
+	<div class="slide" id="initpage" align="center">
+		<h1>스마트폰을 이용해 아래 QR코드를 스캔하세요!</h1>
+		<h5>직접 6자리 코드를 입력하셔도 됩니다.</h5>
+		<div id='UUID'></div>
+		<img align="center" id='qr'>
+	</div>
+	<div class="slide" id="contactspage">
+		<h1>Contact</h1>
+		<table id='contactlist'></table>
+		<input type="button" name="edit" value="수정" id="edit"/>
+	</div>
+	<div class="slide" id="smspage">
+		<h1>SMS 보내기</h1>
+		<div id="smslist"></div>
+		<div id="sendbox">
+			<input type="text" id="msgbox">
+			<input type="button" id="send" value="보내기">
+		</div>
+	</div>
+	<div class="slide" id="editpage">
+		<h1>정보 수정하기</h1>
+	</div>
+	
+	<div id="loading">로딩중입니다.</div>
+</div>
+
+</body>
+</html>
